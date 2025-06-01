@@ -24,9 +24,16 @@ def generate_launch_description() -> LaunchDescription:
         default_value='16000',
         description='Sample rate for audio capture'
     )
+    frames_per_buffer_arg = DeclareLaunchArgument(
+        'frames_per_buffer',
+        default_value='1000',
+        description='Audio frames per buffer (chunk size)'
+    )
+
     active = LaunchConfiguration('active')
     device_index = LaunchConfiguration('device_index')
     rate = LaunchConfiguration('rate')
+    frames_per_buffer = LaunchConfiguration('frames_per_buffer')
 
     ld = LaunchDescription()
 
@@ -34,8 +41,9 @@ def generate_launch_description() -> LaunchDescription:
     ld.add_action(active_arg)
     ld.add_action(device_index_arg)
     ld.add_action(rate_arg)
+    ld.add_action(frames_per_buffer_arg)  # <-- NEW
 
-    # launch audio listener with device_index and rate as parameters
+    # launch audio listener with all params
     ld.add_action(
         Node(
             package="audio_listener",
@@ -43,7 +51,8 @@ def generate_launch_description() -> LaunchDescription:
             output="screen",
             parameters=[{
                 'device_index': device_index,
-                'rate': rate
+                'rate': rate,
+                'frames_per_buffer': frames_per_buffer,
             }]
         )
     )
@@ -57,7 +66,7 @@ def generate_launch_description() -> LaunchDescription:
             name='whisper_container',
             package='rclcpp_components',
             namespace='',
-            executable='component_container_mt',  # Use 'component_container' for single-threaded
+            executable='component_container_mt',
             output={
                     'stdout': 'screen',
                     'stderr': 'screen',

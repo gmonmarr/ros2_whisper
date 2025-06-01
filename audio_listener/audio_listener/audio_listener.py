@@ -18,6 +18,7 @@ class AudioListenerNode(Node):
                 ("channels", 1),
                 ("frames_per_buffer", 1000),
                 ("rate", 16000),
+                ("device_index", -1),
             ],
         )
 
@@ -28,6 +29,15 @@ class AudioListenerNode(Node):
             self.get_parameter("frames_per_buffer").get_parameter_value().integer_value
         )
         self.rate_ = self.get_parameter("rate").get_parameter_value().integer_value
+        self.device_index_ = (
+            self.get_parameter("device_index").get_parameter_value().integer_value
+        )
+
+        print("\n[AudioListenerNode] Starting with parameters:")
+        print(f"  channels          : {self.channels_}")
+        print(f"  frames_per_buffer : {self.frames_per_buffer_}")
+        print(f"  rate              : {self.rate_}")
+        print(f"  device_index      : {self.device_index_}")
 
         self.pyaudio_ = pyaudio.PyAudio()
         self.stream_ = self.pyaudio_.open(
@@ -36,6 +46,7 @@ class AudioListenerNode(Node):
             input=True,
             frames_per_buffer=self.frames_per_buffer_,
             rate=self.rate_,
+            input_device_index=(self.device_index_ if self.device_index_ >= 0 else None),
         )
 
         self.audio_publisher_ = self.create_publisher(
@@ -61,8 +72,14 @@ class AudioListenerNode(Node):
         self.audio_publisher_.publish(audio_msg)
 
     def cleanup_(self):
-        self.stream_.close()
-        self.pyaudio_.terminate()
+        try:
+            self.stream_.close()
+        except Exception:
+            pass
+        try:
+            self.pyaudio_.terminate()
+        except Exception:
+            pass
 
 
 def main(args=None):
