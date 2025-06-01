@@ -50,7 +50,7 @@ class AudioListenerNode(Node):
         atexit.register(self.cleanup_)
 
     def audio_publisher_timer_callback_(self) -> None:
-        audio = self.stream_.read(self.frames_per_buffer_)
+        audio = self.stream_.read(self.frames_per_buffer_, exception_on_overflow=False)
         audio = np.frombuffer(audio, dtype=np.int16)
         audio_msg = Int16MultiArray()
         audio_msg.data = audio.tolist()

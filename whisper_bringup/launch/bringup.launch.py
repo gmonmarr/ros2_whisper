@@ -6,7 +6,6 @@ from launch_ros.actions import ComposableNodeContainer, Node
 from launch_ros.descriptions import ComposableNode
 
 from launch.actions import DeclareLaunchArgument
-# from launch.substitutions import LaunchConfiguration, PythonExpression
 from launch.substitutions import LaunchConfiguration
 
 def generate_launch_description() -> LaunchDescription:
@@ -15,17 +14,37 @@ def generate_launch_description() -> LaunchDescription:
         default_value="true",
         description='Start with whisper node active'
     )
+    device_index_arg = DeclareLaunchArgument(
+        'device_index',
+        default_value='-1',
+        description='Index of the input audio device (see PyAudio device list)'
+    )
+    rate_arg = DeclareLaunchArgument(
+        'rate',
+        default_value='16000',
+        description='Sample rate for audio capture'
+    )
     active = LaunchConfiguration('active')
-
+    device_index = LaunchConfiguration('device_index')
+    rate = LaunchConfiguration('rate')
 
     ld = LaunchDescription()
 
-    # launch audio listener
+    # Declare launch arguments first
+    ld.add_action(active_arg)
+    ld.add_action(device_index_arg)
+    ld.add_action(rate_arg)
+
+    # launch audio listener with device_index and rate as parameters
     ld.add_action(
         Node(
             package="audio_listener",
             executable="audio_listener",
             output="screen",
+            parameters=[{
+                'device_index': device_index,
+                'rate': rate
+            }]
         )
     )
 
@@ -33,7 +52,6 @@ def generate_launch_description() -> LaunchDescription:
     whisper_config = os.path.join(
         get_package_share_directory("whisper_server"), "config", "whisper.yaml"
     )
-
 
     container = ComposableNodeContainer(
             name='whisper_container',
@@ -45,7 +63,6 @@ def generate_launch_description() -> LaunchDescription:
                     'stderr': 'screen',
                 },
             emulate_tty=True,
-            # arguments=['--ros-args', '--log-level', 'debug'],
             composable_node_descriptions=[
                 # Whisper
                 ComposableNode(
@@ -53,9 +70,7 @@ def generate_launch_description() -> LaunchDescription:
                     plugin='whisper::Inference',
                     name='inference',
                     namespace="whisper",
-                    # parameters=[whisper_config, {'active': False}],
                     parameters=[whisper_config, {'active': active}],
-                    # parameters=[whisper_config, {'active': PythonExpression(['"', active, '" == "true"'])}],
                     remappings=[("audio", "/audio_listener/audio")],
                 ),
                 # Transcript manager
@@ -67,6 +82,5 @@ def generate_launch_description() -> LaunchDescription:
                 ),
             ],
         )
-    ld.add_action(active_arg) # ARGUMENT MUST GO FIRST!
     ld.add_action(container)
     return ld
