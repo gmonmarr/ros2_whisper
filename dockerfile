@@ -37,6 +37,14 @@ ENV TERM=xterm-256color
 RUN pip3 install --upgrade pip && \
     pip3 install pynput webrtcvad
 
+# --- Custom: tmux mouse mode ---
+RUN echo "set -g mouse on" > /root/.tmux.conf
+
+# --- Custom: Download Whisper base model ---
+RUN mkdir -p /root/.cache/whisper.cpp && \
+    cd /root/.cache/whisper.cpp && \
+    wget -4 -O ggml-base.en.bin https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.en.bin
+
 # Set up ROS workspace and clone the repo
 WORKDIR /workspace/ros-ai
 RUN mkdir -p src && \
