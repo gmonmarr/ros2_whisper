@@ -3,6 +3,7 @@ from rclpy.node import Node
 from std_msgs.msg import Int16MultiArray
 from whisper_idl.msg import WhisperTokens, AudioTranscript
 from rcl_interfaces.srv import GetParameters
+from rclpy.qos import qos_profile_sensor_data
 
 import time
 
