@@ -1,6 +1,9 @@
 .vscode
 __pycache__
 .continue
+build/*
+install
+log
 
 # Folder view configuration files
 .DS_Store
