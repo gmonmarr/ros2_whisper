@@ -1,5 +1,6 @@
 .vscode
 __pycache__
+audio_debug
 .continue
 build/*
 install

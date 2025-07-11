@@ -6,6 +6,7 @@ import rclpy
 from rclpy.node import Node
 from rclpy.qos import qos_profile_sensor_data
 from std_msgs.msg import Int16MultiArray, MultiArrayDimension
+from scipy.signal import resample_poly
 
 
 class AudioListenerNode(Node):
@@ -28,16 +29,21 @@ class AudioListenerNode(Node):
         self.frames_per_buffer_ = (
             self.get_parameter("frames_per_buffer").get_parameter_value().integer_value
         )
-        self.rate_ = self.get_parameter("rate").get_parameter_value().integer_value
+        self.input_rate_ = self.get_parameter("rate").get_parameter_value().integer_value
         self.device_index_ = (
             self.get_parameter("device_index").get_parameter_value().integer_value
         )
 
+        self.target_rate_ = 16000  # Always publish at 16kHz
+        self.resample_required_ = self.input_rate_ != self.target_rate_
+
         print("\n[AudioListenerNode] Starting with parameters:")
         print(f"  channels          : {self.channels_}")
         print(f"  frames_per_buffer : {self.frames_per_buffer_}")
-        print(f"  rate              : {self.rate_}")
+        print(f"  input_rate        : {self.input_rate_}")
+        print(f"  target_rate       : {self.target_rate_} (fixed)")
         print(f"  device_index      : {self.device_index_}")
+        print(f"  resample_required : {self.resample_required_}")
 
         self.pyaudio_ = pyaudio.PyAudio()
         self.stream_ = self.pyaudio_.open(
@@ -45,7 +51,7 @@ class AudioListenerNode(Node):
             format=pyaudio.paInt16,
             input=True,
             frames_per_buffer=self.frames_per_buffer_,
-            rate=self.rate_,
+            rate=self.input_rate_,
             input_device_index=(self.device_index_ if self.device_index_ >= 0 else None),
         )
 
@@ -54,11 +60,11 @@ class AudioListenerNode(Node):
         )
 
         self.audio_publisher_timer_ = self.create_timer(
-            float(self.frames_per_buffer_) / float(self.rate_),
+            float(self.frames_per_buffer_) / float(self.input_rate_),
             self.audio_publisher_timer_callback_,
         )
 
-        self.buffer = []  # Buffer to accumulate audio samples
+        self.buffer = []  # Buffer to accumulate raw audio samples
 
         atexit.register(self.cleanup_)
 
@@ -67,17 +73,31 @@ class AudioListenerNode(Node):
         audio = np.frombuffer(audio, dtype=np.int16)
         self.buffer.extend(audio)
 
-        while len(self.buffer) >= self.rate_:
-            chunk = self.buffer[:self.rate_]
+        if self.resample_required_:
+            required_input_samples = int(self.target_rate_ * (self.input_rate_ / self.target_rate_))
+        else:
+            required_input_samples = self.target_rate_
+
+        while len(self.buffer) >= required_input_samples:
+            chunk = self.buffer[:required_input_samples]
+            self.buffer = self.buffer[required_input_samples:]
+
+            if self.resample_required_:
+                # Resample from input_rate_ to 16000 using polyphase filter
+                resampled = resample_poly(chunk, self.target_rate_, self.input_rate_)
+                resampled = np.clip(resampled, -32768, 32767).astype(np.int16)
+                chunk = resampled
+            else:
+                chunk = np.array(chunk, dtype=np.int16)
+
             audio_msg = Int16MultiArray()
             audio_msg.data = [int(x) for x in chunk]
             audio_msg.layout.data_offset = 0
             audio_msg.layout.dim = [
-                MultiArrayDimension(label="audio", size=self.rate_, stride=1)
+                MultiArrayDimension(label="audio", size=len(chunk), stride=1)
             ]
             self.audio_publisher_.publish(audio_msg)
             self.get_logger().info(f"🔊 Published 1 sec of audio ({len(audio_msg.data)} samples)")
-            self.buffer = self.buffer[self.rate_:]
 
     def cleanup_(self):
         try:
