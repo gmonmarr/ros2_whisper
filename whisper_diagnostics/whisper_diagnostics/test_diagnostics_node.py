@@ -5,7 +5,9 @@ from whisper_idl.msg import WhisperTokens, AudioTranscript
 from rcl_interfaces.srv import GetParameters
 from rclpy.qos import qos_profile_sensor_data
 
-import time
+import numpy as np
+import soundfile as sf
+from pathlib import Path
 
 class WhisperDiagnostics(Node):
     def __init__(self):
@@ -19,7 +21,7 @@ class WhisperDiagnostics(Node):
             Int16MultiArray,
             '/audio_listener/audio',
             self.audio_cb,
-            qos_profile_sensor_data  # <-- match publisher exactly
+            qos_profile_sensor_data
         )
         
         self.tokens_sub = self.create_subscription(
@@ -39,9 +41,27 @@ class WhisperDiagnostics(Node):
         self.timer = self.create_timer(5.0, self.report_summary)
         self.called_once = False
 
+        # Audio debug setup
+        self.audio_buffer = []
+        self.audio_sample_rate = 16000
+        self.audio_max_samples = self.audio_sample_rate * 5  # 5 seconds
+        self.audio_save_counter = 0
+        self.audio_save_dir = Path("/tmp/audio_debug")
+        self.audio_save_dir.mkdir(parents=True, exist_ok=True)
+
     def audio_cb(self, msg):
         self.audio_msgs += 1
         self.get_logger().info(f"🟢 Received audio message #{self.audio_msgs}")
+
+        # Collect and save audio samples
+        self.audio_buffer.extend(msg.data)
+        if len(self.audio_buffer) >= self.audio_max_samples:
+            wav_data = np.array(self.audio_buffer[:self.audio_max_samples], dtype=np.int16)
+            file_path = self.audio_save_dir / f"audio_debug_{self.audio_save_counter:03}.wav"
+            sf.write(str(file_path), wav_data, self.audio_sample_rate)
+            self.get_logger().info(f"💾 Saved audio to {file_path}")
+            self.audio_save_counter += 1
+            self.audio_buffer = self.audio_buffer[self.audio_max_samples:]
 
     def tokens_cb(self, msg):
         self.tokens_msgs += 1
@@ -52,25 +72,21 @@ class WhisperDiagnostics(Node):
     def report_summary(self):
         self.get_logger().info("----- Diagnostic Summary -----")
 
-        # Audio
         if self.audio_msgs > 0:
             self.get_logger().info(f"✅ Received {self.audio_msgs} /audio messages")
         else:
             self.get_logger().error("❌ No /audio messages received")
 
-        # Tokens
         if self.tokens_msgs > 0:
             self.get_logger().info(f"✅ Received {self.tokens_msgs} /whisper/tokens messages")
         else:
             self.get_logger().warn("⚠️ No /whisper/tokens messages received")
 
-        # Transcript
         if self.transcript_msgs > 0:
             self.get_logger().info(f"✅ Received {self.transcript_msgs} /whisper/transcript_stream messages")
         else:
             self.get_logger().warn("⚠️ No /whisper/transcript_stream messages received")
 
-        # Inference active param
         if not self.called_once:
             self.called_once = True
             self.check_inference_status()
