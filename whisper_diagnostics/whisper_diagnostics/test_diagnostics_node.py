@@ -16,7 +16,7 @@ class WhisperDiagnostics(Node):
 
         self.audio_sub = self.create_subscription(
             Int16MultiArray,
-            '/audio',
+            '/audio_listener/audio',
             self.audio_cb,
             10
         )
