@@ -18,8 +18,9 @@ class WhisperDiagnostics(Node):
             Int16MultiArray,
             '/audio_listener/audio',
             self.audio_cb,
-            10
+            qos_profile_sensor_data  # <-- match publisher exactly
         )
+        
         self.tokens_sub = self.create_subscription(
             WhisperTokens,
             '/whisper/tokens',
@@ -39,6 +40,7 @@ class WhisperDiagnostics(Node):
 
     def audio_cb(self, msg):
         self.audio_msgs += 1
+        self.get_logger().info(f"🟢 Received audio message #{self.audio_msgs}")
 
     def tokens_cb(self, msg):
         self.tokens_msgs += 1

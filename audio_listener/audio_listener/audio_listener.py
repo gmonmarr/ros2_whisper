@@ -67,7 +67,6 @@ class AudioListenerNode(Node):
         audio = np.frombuffer(audio, dtype=np.int16)
         self.buffer.extend(audio)
 
-        # Publish only if we have at least 1 second of audio
         while len(self.buffer) >= self.rate_:
             chunk = self.buffer[:self.rate_]
             audio_msg = Int16MultiArray()
@@ -77,7 +76,8 @@ class AudioListenerNode(Node):
                 MultiArrayDimension(label="audio", size=self.rate_, stride=1)
             ]
             self.audio_publisher_.publish(audio_msg)
-            self.buffer = self.buffer[self.rate_:]  # Remove published samples
+            self.get_logger().info(f"🔊 Published 1 sec of audio ({len(audio_msg.data)} samples)")
+            self.buffer = self.buffer[self.rate_:]
 
     def cleanup_(self):
         try:
