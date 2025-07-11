@@ -58,18 +58,26 @@ class AudioListenerNode(Node):
             self.audio_publisher_timer_callback_,
         )
 
+        self.buffer = []  # Buffer to accumulate audio samples
+
         atexit.register(self.cleanup_)
 
     def audio_publisher_timer_callback_(self) -> None:
         audio = self.stream_.read(self.frames_per_buffer_, exception_on_overflow=False)
         audio = np.frombuffer(audio, dtype=np.int16)
-        audio_msg = Int16MultiArray()
-        audio_msg.data = audio.tolist()
-        audio_msg.layout.data_offset = 0
-        audio_msg.layout.dim.append(
-            MultiArrayDimension(label="audio", size=self.frames_per_buffer_, stride=1)
-        )
-        self.audio_publisher_.publish(audio_msg)
+        self.buffer.extend(audio)
+
+        # Publish only if we have at least 1 second of audio
+        while len(self.buffer) >= self.rate_:
+            chunk = self.buffer[:self.rate_]
+            audio_msg = Int16MultiArray()
+            audio_msg.data = [int(x) for x in chunk]
+            audio_msg.layout.data_offset = 0
+            audio_msg.layout.dim = [
+                MultiArrayDimension(label="audio", size=self.rate_, stride=1)
+            ]
+            self.audio_publisher_.publish(audio_msg)
+            self.buffer = self.buffer[self.rate_:]  # Remove published samples
 
     def cleanup_(self):
         try:

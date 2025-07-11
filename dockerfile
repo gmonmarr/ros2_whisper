@@ -59,7 +59,7 @@ ENV CMAKE_BUILD_PARALLEL_LEVEL=2
 
 # Build the workspace
 RUN . /opt/ros/humble/setup.sh && \
-    colcon build --symlink-install --cmake-args -DGGML_CUDA=On --no-warn-unused-cli --executor sequential
+    colcon build --symlink-install --cmake-args -DGGML_CUDA=On --no-warn-unused-cli
 
 # For running audio input (allow access to audio devices)
 ENV PULSE_SERVER=unix:/run/user/1000/pulse/native
